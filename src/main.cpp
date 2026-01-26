@@ -1,11 +1,14 @@
 #include <Arduino.h>
 #include <lvgl.h>
+#include "draw/sw/lv_draw_sw_utils.h"
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
 #include "esp_lcd_touch_axs15231b.h"
 #include "esp_heap_caps.h"
+#include "ui.h"
 
 #define DIRECT_RENDER_MODE
+#define ROTATE_LVGL_CW 1
 
 // Display pins
 #define GFX_BL     1
@@ -30,6 +33,7 @@ uint32_t bufSize;
 lv_display_t *disp;
 lv_color_t *disp_draw_buf1;
 lv_color_t *disp_draw_buf2;
+lv_color_t *rot_buf;
 
 #if LV_USE_LOG != 0
 void my_print(lv_log_level_t level, const char *buf)
@@ -50,8 +54,22 @@ void my_disp_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 {
   uint32_t w = lv_area_get_width(area);
   uint32_t h = lv_area_get_height(area);
-
-  gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)px_map, w, h);
+  if (ROTATE_LVGL_CW) {
+    if (!rot_buf) {
+      rot_buf = (lv_color_t *)heap_caps_malloc(screenWidth * screenHeight * 2, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+      if (!rot_buf) {
+        rot_buf = (lv_color_t *)malloc(screenWidth * screenHeight * 2);
+      }
+    }
+    if (rot_buf && area->x1 == 0 && area->y1 == 0 && w == screenWidth && h == screenHeight) {
+      lv_draw_sw_rotate(px_map, rot_buf, screenWidth, screenHeight,
+                        screenWidth * 2, screenHeight * 2,
+                        LV_DISPLAY_ROTATION_90, LV_COLOR_FORMAT_RGB565);
+      gfx->draw16bitRGBBitmap(0, 0, (uint16_t *)rot_buf, screenHeight, screenWidth);
+    }
+  } else {
+    gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)px_map, w, h);
+  }
 
   /* Call it to tell LVGL you are ready */
   lv_disp_flush_ready(disp);
@@ -64,9 +82,23 @@ void my_touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
   bsp_touch_read();
 
   if (bsp_touch_get_coordinates(&touch_data)) {
-    data->state = LV_INDEV_STATE_PR;
-    data->point.x = touch_data.coords[0].x;
-    data->point.y = touch_data.coords[0].y;
+    int32_t x = touch_data.coords[0].x;
+    int32_t y = touch_data.coords[0].y;
+    if (ROTATE_LVGL_CW) {
+      int32_t lx = (int32_t)screenWidth - 1 - y;
+      int32_t ly = x;
+      if (lx >= 0 && lx < (int32_t)screenWidth && ly >= 0 && ly < (int32_t)screenHeight) {
+        data->state = LV_INDEV_STATE_PR;
+        data->point.x = lx;
+        data->point.y = ly;
+      } else {
+        data->state = LV_INDEV_STATE_REL;
+      }
+    } else {
+      data->state = LV_INDEV_STATE_PR;
+      data->point.x = x;
+      data->point.y = y;
+    }
   } else {
     data->state = LV_INDEV_STATE_REL;
   }
@@ -75,7 +107,6 @@ void my_touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
 void setup()
 {
   Wire.begin(I2C_SDA, I2C_SCL);
-  bsp_touch_init(&Wire, -1, 0, 320, 480);
 
   Serial.begin(115200);
   Serial.println("Arduino_GFX LVGL_Arduino_v9 example");
@@ -84,6 +115,7 @@ void setup()
   {
     Serial.println("gfx->begin() failed!");
   }
+  gfx->setRotation(0);
   gfx->fillScreen(RGB565_BLACK);
 
 #ifdef GFX_BL
@@ -100,8 +132,9 @@ void setup()
   lv_log_register_print_cb(my_print);
 #endif
 
-  screenWidth = gfx->width();
-  screenHeight = gfx->height();
+  screenWidth = gfx->height();
+  screenHeight = gfx->width();
+  bsp_touch_init(&Wire, -1, 0, gfx->width(), gfx->height());
 
 #ifdef DIRECT_RENDER_MODE
   bufSize = screenWidth * screenHeight;
@@ -130,9 +163,7 @@ void setup()
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, my_touchpad_read);
 
-    lv_obj_t *label = lv_label_create(lv_scr_act());
-    lv_label_set_text(label, "Hello Arduino, I'm LVGL!");
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+    ui_init();
   }
 
   Serial.println("Setup done");
