@@ -1,7 +1,12 @@
-ui_Screen1.c
+ui_Settings.c
+ui_Mainui.c
 ui.c
 ui_comp_hook.c
 ui_helpers.c
-fonts/ui_font_Euro10.c
-fonts/ui_font_Euro20.c
-fonts/ui_font_euro80.c
+ui_img_88054402.c
+ui_img_settings_png.c
+fonts/ui_font_Euro15.c
+fonts/ui_font_Euro40.c
+fonts/ui_font_Euro60.c
+fonts/ui_font_Euro80.c
+fonts/ui_font_euro20.c

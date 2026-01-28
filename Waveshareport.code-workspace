@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"name": "Waveshareport",
+			"path": "../Waveshareport"
+		},
+		{
+			"name": "square screen",
+			"path": "."
+		},
+		{
+			"name": "BLE Testing",
+			"path": "../BLE Testing"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}

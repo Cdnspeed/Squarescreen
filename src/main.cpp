@@ -6,6 +6,8 @@
 #include "esp_lcd_touch_axs15231b.h"
 #include "esp_heap_caps.h"
 #include "ui.h"
+#include <NimBLEDevice.h>
+#include "ant_bms_ble_module.h"
 
 #define DIRECT_RENDER_MODE
 #define ROTATE_LVGL_CW 1
@@ -166,11 +168,16 @@ void setup()
     ui_init();
   }
 
+  NimBLEDevice::init("");
+  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+  ant_bms_ble_module_init();
+
   Serial.println("Setup done");
 }
 
 void loop()
 {
   lv_task_handler();
+  ant_bms_ble_module_tick(millis());
   delay(5);
 }
